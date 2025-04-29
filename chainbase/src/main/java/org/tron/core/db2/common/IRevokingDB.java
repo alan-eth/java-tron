@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.tron.core.db2.core.Chainbase;
+import org.tron.core.db2.core.Snapshot;
 import org.tron.core.exception.ItemNotFoundException;
 
 public interface IRevokingDB extends Iterable<Map.Entry<byte[], byte[]>> {
@@ -28,6 +29,8 @@ public interface IRevokingDB extends Iterable<Map.Entry<byte[], byte[]>> {
   void setCursor(Chainbase.Cursor cursor);
 
   void setCursor(Chainbase.Cursor cursor, long offset);
+
+  void setSpecifiedCursor(Snapshot snapshot);
 
   Chainbase.Cursor getCursor();
 

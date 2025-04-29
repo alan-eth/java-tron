@@ -2,6 +2,7 @@ package org.tron.core.db2.core;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Streams;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -13,7 +14,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.tron.common.utils.ByteUtil;
-import org.tron.common.utils.Pair;
 import org.tron.core.capsule.utils.MarketUtils;
 import org.tron.core.db2.common.IRevokingDB;
 import org.tron.core.db2.common.LevelDB;
@@ -29,12 +29,15 @@ public class Chainbase implements IRevokingDB {
   public enum Cursor {
     HEAD,
     SOLIDITY,
-    PBFT
+    PBFT,
+    // add a specified block number cursor
+    SPECIFIED,
   }
 
   //true:fullnode, false:soliditynode
   private ThreadLocal<Cursor> cursor = new ThreadLocal<>();
   private ThreadLocal<Long> offset = new ThreadLocal<>();
+  private ThreadLocal<Snapshot> specifiedSnapShot = new ThreadLocal<>();
   private Snapshot head;
 
   public Chainbase(Snapshot head) {
@@ -56,6 +59,12 @@ public class Chainbase implements IRevokingDB {
   public void setCursor(Cursor cursor, long offset) {
     this.cursor.set(cursor);
     this.offset.set(offset);
+  }
+
+  @Override
+  public void setSpecifiedCursor(Snapshot snapshot) {
+    this.cursor.set(Cursor.SPECIFIED);
+    this.specifiedSnapShot.set(snapshot);
   }
 
   @Override
@@ -90,6 +99,11 @@ public class Chainbase implements IRevokingDB {
           return tmp;
         } else {
           return head.getSolidity();
+        }
+      case SPECIFIED:
+        Snapshot res = specifiedSnapShot.get();
+        if (res == null) {
+          return head;
         }
       default:
         return head;
@@ -351,7 +365,7 @@ public class Chainbase implements IRevokingDB {
 
   public Map<WrappedByteArray, byte[]> prefixQuery(byte[] key) {
     Map<WrappedByteArray, byte[]> result = prefixQueryRoot(key);
-    Map<WrappedByteArray, byte[]>  snapshot = prefixQuerySnapshot(key);
+    Map<WrappedByteArray, byte[]> snapshot = prefixQuerySnapshot(key);
     result.putAll(snapshot);
     result.entrySet().removeIf(e -> e.getValue() == null);
     return result;
