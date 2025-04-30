@@ -91,7 +91,10 @@ public class Chainbase implements IRevokingDB {
         }
       case SPECIFIED:
         Snapshot tmp = head;
-        long curSnapshotVersion = Optional.ofNullable(specifiedSnapshotVersion.get()).orElse(-1L);
+        Long curSnapshotVersion = specifiedSnapshotVersion.get();
+        if (curSnapshotVersion == null) {
+          return head;
+        }
         while (tmp != null && tmp != tmp.getRoot()) {
           if (tmp.getSnapVersion() == curSnapshotVersion) {
             return tmp;
