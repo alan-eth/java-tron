@@ -150,6 +150,11 @@ public class SnapshotManager implements RevokingDatabase {
   }
 
   @Override
+  public void setSpecifiedCursor(Long specifiedSnapshotVersion) {
+    dbs.forEach(db -> db.setSpecifiedSnapshotVersion(specifiedSnapshotVersion));
+  }
+
+  @Override
   public void add(IRevokingDB db) {
     Chainbase revokingDB = (Chainbase) db;
     dbs.add(revokingDB);
@@ -159,7 +164,8 @@ public class SnapshotManager implements RevokingDatabase {
   }
 
   private void advance() {
-    dbs.forEach(db -> db.setHead(db.getHead().advance()));
+    final long newVersion = SnapshotVersion.getInstance().addOne();
+    dbs.forEach(db -> db.setHead(db.getHead().advance(newVersion)));
     ++size;
   }
 

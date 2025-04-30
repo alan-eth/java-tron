@@ -20,6 +20,7 @@ import org.tron.common.utils.Sha256Hash;
 import org.tron.core.capsule.BytesCapsule;
 import org.tron.core.config.Parameter.ChainConstant;
 import org.tron.core.db.TronStoreWithRevoking;
+import org.tron.core.db2.core.Snapshot;
 import org.tron.core.exception.BadItemException;
 import org.tron.core.exception.ItemNotFoundException;
 
@@ -2145,6 +2146,14 @@ public class DynamicPropertiesStore extends TronStoreWithRevoking<BytesCapsule> 
         .map(ByteArray::toLong)
         .orElseThrow(
             () -> new IllegalArgumentException("not found latest block header number"));
+  }
+
+  public Long getSpecifiedNumberSnapshotVersion(long specifiedNumber) {
+    Snapshot snapshot = revokingDB.findSnapshot(LATEST_BLOCK_HEADER_NUMBER, new BytesCapsule(ByteArray.fromLong(specifiedNumber)).getData());
+    if (snapshot == null) {
+      return null;
+    }
+    return snapshot.getSnapVersion();
   }
 
   public long getLatestBlockHeaderNumberFromDB() {

@@ -16,9 +16,13 @@ public class PostParams {
   @Getter
   private boolean visible;
 
-  public PostParams(String params, boolean visible) {
+  @Getter
+  private Long specifiedNumber;
+
+  public PostParams(String params, boolean visible, Long specifiedNumber) {
     this.params = params;
     this.visible = visible;
+    this.specifiedNumber = specifiedNumber;
   }
 
   public static PostParams getPostParams(HttpServletRequest request) throws Exception {
@@ -28,6 +32,6 @@ public class PostParams {
       input = getJsonString(input);
     }
     boolean visible = Util.getVisiblePost(input);
-    return new PostParams(input, visible);
+    return new PostParams(input, visible, Util.getSpecifiedPost(input));
   }
 }

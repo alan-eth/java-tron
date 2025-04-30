@@ -1,9 +1,12 @@
 package org.tron.core.services;
 
 import java.util.concurrent.Callable;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.tron.core.ChainBaseManager;
 import org.tron.core.db.Manager;
+import org.tron.core.db.RevokingDatabase;
 import org.tron.core.db2.core.Chainbase;
 
 @Slf4j(topic = "API")
@@ -12,6 +15,9 @@ public abstract class WalletOnCursor {
   protected Chainbase.Cursor cursor = Chainbase.Cursor.HEAD;
   @Autowired
   private Manager dbManager;
+
+  @Autowired
+  private RevokingDatabase revokingStore;
 
   public <T> T futureGet(TronCallable<T> callable) {
     try {
@@ -36,4 +42,27 @@ public abstract class WalletOnCursor {
     @Override
     T call();
   }
+
+  @FunctionalInterface
+  public interface ExceptionalRunnable {
+    void run() throws Exception;
+  }
+
+  public void futureGet(ExceptionalRunnable runnable, Long specifiedNumber) throws Exception {
+    if (specifiedNumber == null) {
+      runnable.run();
+      return;
+    }
+
+    try {
+      ChainBaseManager chainBaseManager = dbManager.getChainBaseManager();
+      Long snapshotVersion = chainBaseManager.getDynamicPropertiesStore().getSpecifiedNumberSnapshotVersion(specifiedNumber);
+      // can be null
+      revokingStore.setSpecifiedCursor(snapshotVersion);
+      runnable.run();
+    } finally {
+      dbManager.resetCursor();
+    }
+  }
+
 }

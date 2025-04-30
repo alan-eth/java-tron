@@ -17,9 +17,13 @@ public abstract class AbstractSnapshot<K, V> implements Snapshot {
 
   protected boolean isOptimized;
 
+  @Getter
+  @Setter
+  protected long snapVersion; // snapshot version
+
   @Override
-  public Snapshot advance() {
-    return new SnapshotImpl(this);
+  public Snapshot advance(long newSnapVersion) {
+    return new SnapshotImpl(this, newSnapVersion);
   }
 
   @Override

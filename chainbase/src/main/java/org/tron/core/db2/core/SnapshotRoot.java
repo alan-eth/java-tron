@@ -39,6 +39,9 @@ public class SnapshotRoot extends AbstractSnapshot<byte[], byte[]> {
       this.cache = CacheManager.allocate(CacheType.findByType(this.db.getDbName()));
     }
     isOptimized = "properties".equalsIgnoreCase(db.getDbName());
+
+    // Set the snapshot version
+    snapVersion = SnapshotVersion.getInstance().getCurrentVersion();
   }
 
   private boolean needOptAsset() {
@@ -102,6 +105,7 @@ public class SnapshotRoot extends AbstractSnapshot<byte[], byte[]> {
       ((Flusher) db).flush(batch);
       putCache(batch);
     }
+    snapVersion = from.getSnapVersion();
   }
 
   public void merge(List<Snapshot> snapshots) {

@@ -15,6 +15,8 @@ public interface RevokingDatabase {
 
   void setCursor(Chainbase.Cursor cursor, long offset);
 
+  void setSpecifiedCursor(Long specifiedSnapshotVersion);
+
   void add(IRevokingDB revokingDB);
 
   void merge() throws RevokingStoreIllegalStateException;

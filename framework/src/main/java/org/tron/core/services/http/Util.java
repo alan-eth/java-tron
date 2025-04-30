@@ -20,10 +20,7 @@ import java.lang.reflect.Constructor;
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
 import java.security.InvalidParameterException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -66,6 +63,7 @@ public class Util {
 
   public static final String PERMISSION_ID = "Permission_id";
   public static final String VISIBLE = "visible";
+  public static final String SPECIFIED_NUMBER = "specified_number";
   public static final String TRANSACTION = "transaction";
   public static final String TRANSACTION_EXTENSION = "transactionExtension";
   public static final String VALUE = "value";
@@ -342,6 +340,15 @@ public class Util {
     return visible;
   }
 
+  // getSpecifiedNumber
+  public static Long getSpecifiedNumber(final HttpServletRequest request) {
+    Long res = null;
+    if (StringUtil.isNotBlank(request.getParameter(SPECIFIED_NUMBER))) {
+      res = Long.parseLong(request.getParameter(SPECIFIED_NUMBER));
+    }
+    return res;
+  }
+
   public static boolean existVisible(final HttpServletRequest request) {
     return Objects.nonNull(request.getParameter(VISIBLE));
   }
@@ -356,6 +363,17 @@ public class Util {
     }
 
     return visible;
+  }
+
+  public static Long getSpecifiedPost(final String input) {
+    Long res = null;
+    if (StringUtil.isNotBlank(input)) {
+      JSONObject jsonObject = JSON.parseObject(input);
+      if (jsonObject.containsKey(SPECIFIED_NUMBER)) {
+        res = Long.parseLong(jsonObject.getString(SPECIFIED_NUMBER));
+      }
+    }
+    return res;
   }
 
   public static String getContractType(final String input) {

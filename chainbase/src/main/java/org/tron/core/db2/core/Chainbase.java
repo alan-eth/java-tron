@@ -3,24 +3,13 @@ package org.tron.core.db2.core;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Streams;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import org.tron.common.utils.ByteUtil;
 import org.tron.core.capsule.utils.MarketUtils;
-import org.tron.core.db2.common.IRevokingDB;
-import org.tron.core.db2.common.LevelDB;
-import org.tron.core.db2.common.RocksDB;
-import org.tron.core.db2.common.Value;
+import org.tron.core.db2.common.*;
 import org.tron.core.db2.common.Value.Operator;
-import org.tron.core.db2.common.WrappedByteArray;
 import org.tron.core.exception.ItemNotFoundException;
 
 public class Chainbase implements IRevokingDB {
@@ -37,7 +26,7 @@ public class Chainbase implements IRevokingDB {
   //true:fullnode, false:soliditynode
   private ThreadLocal<Cursor> cursor = new ThreadLocal<>();
   private ThreadLocal<Long> offset = new ThreadLocal<>();
-  private ThreadLocal<Snapshot> specifiedSnapShot = new ThreadLocal<>();
+  private ThreadLocal<Long> specifiedSnapshotVersion = new ThreadLocal<>();
   private Snapshot head;
 
   public Chainbase(Snapshot head) {
@@ -62,9 +51,9 @@ public class Chainbase implements IRevokingDB {
   }
 
   @Override
-  public void setSpecifiedCursor(Snapshot snapshot) {
+  public void setSpecifiedSnapshotVersion(Long specifiedSnapshotVersion) {
     this.cursor.set(Cursor.SPECIFIED);
-    this.specifiedSnapShot.set(snapshot);
+    this.specifiedSnapshotVersion.set(specifiedSnapshotVersion);
   }
 
   @Override
@@ -101,10 +90,15 @@ public class Chainbase implements IRevokingDB {
           return head.getSolidity();
         }
       case SPECIFIED:
-        Snapshot res = specifiedSnapShot.get();
-        if (res == null) {
-          return head;
+        Snapshot tmp = head;
+        long curSnapshotVersion = Optional.ofNullable(specifiedSnapshotVersion.get()).orElse(-1L);
+        while (tmp != null && tmp != tmp.getRoot()) {
+          if (tmp.getSnapVersion() == curSnapshotVersion) {
+            return tmp;
+          }
+          tmp = tmp.getPrevious();
         }
+        return head;
       default:
         return head;
     }
@@ -390,6 +384,20 @@ public class Chainbase implements IRevokingDB {
       all.forEach((k, v) -> result.put(k, v.getBytes()));
     }
     return result;
+  }
+
+
+  public Snapshot findSnapshot(byte[] key, byte[] value) {
+    Snapshot cur = head;
+    Value tmpValue;
+    while (Snapshot.isImpl(cur)) {
+      if ((tmpValue = ((SnapshotImpl) cur).db.get(Key.of(key))) != null
+          && Arrays.equals(tmpValue.getBytes(), value)) {
+        return cur;
+      }
+      cur = cur.getPrevious();
+    }
+    return Snapshot.isImpl(cur) ? cur : null;
   }
 
 }

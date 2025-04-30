@@ -50,7 +50,7 @@ public class GetBlockServlet extends RateLimiterServlet {
       }
       params.put("detail", Boolean.parseBoolean(request.getParameter("detail")));
       return new PostParams(JSON.toJSONString(params),
-          Boolean.parseBoolean(request.getParameter(Util.VISIBLE)));
+          Boolean.parseBoolean(request.getParameter(Util.VISIBLE)), Long.parseLong(request.getParameter(Util.SPECIFIED_NUMBER)));
     }
     if (HttpMethod.POST.equals(m)) {
       return PostParams.getPostParams(request);

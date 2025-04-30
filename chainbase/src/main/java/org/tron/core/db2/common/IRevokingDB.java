@@ -30,7 +30,7 @@ public interface IRevokingDB extends Iterable<Map.Entry<byte[], byte[]>> {
 
   void setCursor(Chainbase.Cursor cursor, long offset);
 
-  void setSpecifiedCursor(Snapshot snapshot);
+  void setSpecifiedSnapshotVersion(Long specifiedSnapshotVersion);
 
   Chainbase.Cursor getCursor();
 
@@ -47,5 +47,7 @@ public interface IRevokingDB extends Iterable<Map.Entry<byte[], byte[]>> {
   default Map<byte[], byte[]> getNext(byte[] key, long limit) {
     return Collections.emptyMap();
   }
+
+  Snapshot findSnapshot(byte[] key, byte[] value);
 
 }
