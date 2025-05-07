@@ -124,7 +124,7 @@ public interface TronJsonRpc {
   @JsonRpcErrors({
       @JsonRpcError(exception = JsonRpcInvalidParamsException.class, code = -32602, data = "{}"),
   })
-  TransactionResult getTransactionByHash(String txId) throws JsonRpcInvalidParamsException;
+  TransactionResult getTransactionByHash(String txId, Long specifiedNumber) throws JsonRpcInvalidParamsException;
 
   @JsonRpcMethod("eth_getTransactionByBlockHashAndIndex")
   @JsonRpcErrors({

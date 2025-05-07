@@ -25,8 +25,8 @@ public class GetTransactionByIdServlet extends RateLimiterServlet {
   private WalletOnSpecified walletOnSpecified;
 
   protected void doGet(HttpServletRequest request, HttpServletResponse response) {
-    Long specifiedNumber = Util.getSpecifiedNumber(request);
     try {
+      Long specifiedNumber = Util.getSpecifiedNumber(request);
       boolean visible = Util.getVisible(request);
       String input = request.getParameter("value");
       walletOnSpecified.futureGet(() -> fillResponse(ByteString.copyFrom(ByteArray.fromHexString(input)), visible, response), specifiedNumber);

@@ -13,6 +13,7 @@ import static org.tron.core.services.jsonrpc.JsonRpcApiUtil.triggerCallContract;
 import com.alibaba.fastjson.JSON;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageV3;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,6 +27,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -66,6 +68,7 @@ import org.tron.core.exception.VMIllegalException;
 import org.tron.core.services.NodeInfoService;
 import org.tron.core.services.http.JsonFormat;
 import org.tron.core.services.http.Util;
+import org.tron.core.services.http.WalletOnSpecified;
 import org.tron.core.services.jsonrpc.filters.BlockFilterAndResult;
 import org.tron.core.services.jsonrpc.filters.LogBlockQuery;
 import org.tron.core.services.jsonrpc.filters.LogFilter;
@@ -158,6 +161,9 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
   private final Wallet wallet;
   private final Manager manager;
   private final String esName = "query-section";
+
+  @Autowired
+  WalletOnSpecified walletOnSpecified;
 
   @Autowired
   public TronJsonRpcImpl(@Autowired NodeInfoService nodeInfoService, @Autowired Wallet wallet,
@@ -381,8 +387,8 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
   }
 
   private void callTriggerConstantContract(byte[] ownerAddressByte, byte[] contractAddressByte,
-      long value, byte[] data, TransactionExtention.Builder trxExtBuilder,
-      Return.Builder retBuilder)
+                                           long value, byte[] data, TransactionExtention.Builder trxExtBuilder,
+                                           Return.Builder retBuilder)
       throws ContractValidateException, ContractExeException, HeaderNotFound, VMIllegalException {
 
     TriggerSmartContract triggerContract = triggerCallContract(
@@ -406,8 +412,8 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
   }
 
   private void estimateEnergy(byte[] ownerAddressByte, byte[] contractAddressByte,
-      long value, byte[] data, TransactionExtention.Builder trxExtBuilder,
-      Return.Builder retBuilder, EstimateEnergyMessage.Builder estimateBuilder)
+                              long value, byte[] data, TransactionExtention.Builder trxExtBuilder,
+                              Return.Builder retBuilder, EstimateEnergyMessage.Builder estimateBuilder)
       throws ContractValidateException, ContractExeException, HeaderNotFound, VMIllegalException {
 
     TriggerSmartContract triggerContract = triggerCallContract(
@@ -432,10 +438,10 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
 
   /**
    * @param data Hash of the method signature and encoded parameters. for example:
-   * getMethodSign(methodName(uint256,uint256)) || data1 || data2
+   *             getMethodSign(methodName(uint256,uint256)) || data1 || data2
    */
   private String call(byte[] ownerAddressByte, byte[] contractAddressByte, long value,
-      byte[] data) throws JsonRpcInvalidRequestException, JsonRpcInternalException {
+                      byte[] data) throws JsonRpcInvalidRequestException, JsonRpcInternalException {
 
     TransactionExtention.Builder trxExtBuilder = TransactionExtention.newBuilder();
     Return.Builder retBuilder = Return.newBuilder();
@@ -657,41 +663,55 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
   }
 
   @Override
-  public TransactionResult getTransactionByHash(String txId) throws JsonRpcInvalidParamsException {
-    ByteString transactionId = ByteString.copyFrom(hashToByteArray(txId));
+  public TransactionResult getTransactionByHash(String txId, Long specifiedNumber) throws JsonRpcInvalidParamsException {
+    final TransactionResult[] result = {null};
+    try {
+      walletOnSpecified.futureGet(() -> {
+        ByteString transactionId = ByteString.copyFrom(hashToByteArray(txId));
 
-    TransactionInfo transactionInfo = wallet.getTransactionInfoById(transactionId);
-    if (transactionInfo == null) {
-      TransactionCapsule transactionCapsule = wallet.getTransactionCapsuleById(transactionId);
-      if (transactionCapsule == null) {
-        return null;
-      }
+        TransactionInfo transactionInfo = wallet.getTransactionInfoById(transactionId);
+        if (transactionInfo == null) {
+          TransactionCapsule transactionCapsule = wallet.getTransactionCapsuleById(transactionId);
+          if (transactionCapsule == null) {
+            result[0] = null;
+            return;
+          }
 
-      BlockCapsule blockCapsule = wallet.getBlockCapsuleByNum(transactionCapsule.getBlockNum());
-      if (blockCapsule == null) {
-        return new TransactionResult(transactionCapsule.getInstance(), wallet);
-      } else {
-        int transactionIndex = getTransactionIndex(
-            ByteArray.toHexString(transactionCapsule.getTransactionId().getBytes()),
-            blockCapsule.getInstance().getTransactionsList());
+          BlockCapsule blockCapsule = wallet.getBlockCapsuleByNum(transactionCapsule.getBlockNum());
+          if (blockCapsule == null) {
+            result[0] = new TransactionResult(transactionCapsule.getInstance(), wallet);
+            return;
+          } else {
+            int transactionIndex = getTransactionIndex(
+                ByteArray.toHexString(transactionCapsule.getTransactionId().getBytes()),
+                blockCapsule.getInstance().getTransactionsList());
 
-        if (transactionIndex == -1) {
-          return null;
+            if (transactionIndex == -1) {
+              return;
+            }
+
+            long energyUsageTotal = 0;
+            result[0] = new TransactionResult(blockCapsule, transactionIndex,
+                transactionCapsule.getInstance(), energyUsageTotal,
+                wallet.getEnergyFee(blockCapsule.getTimeStamp()), wallet);
+            return;
+          }
+        } else {
+          Block block = wallet.getBlockByNum(transactionInfo.getBlockNumber());
+          if (block == null) {
+            return;
+          }
+
+          result[0] = formatTransactionResult(transactionInfo, block);
+          return;
         }
-
-        long energyUsageTotal = 0;
-        return new TransactionResult(blockCapsule, transactionIndex,
-            transactionCapsule.getInstance(), energyUsageTotal,
-            wallet.getEnergyFee(blockCapsule.getTimeStamp()), wallet);
-      }
-    } else {
-      Block block = wallet.getBlockByNum(transactionInfo.getBlockNumber());
-      if (block == null) {
-        return null;
-      }
-
-      return formatTransactionResult(transactionInfo, block);
+      }, specifiedNumber);
+    } catch (JsonRpcInvalidParamsException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
+    return result[0];
   }
 
   private TransactionResult formatTransactionResult(TransactionInfo transactioninfo, Block block) {
@@ -928,7 +948,7 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
   }
 
   private TransactionJson buildCreateSmartContractTransaction(byte[] ownerAddress,
-      BuildArguments args) throws JsonRpcInvalidParamsException, JsonRpcInvalidRequestException,
+                                                              BuildArguments args) throws JsonRpcInvalidParamsException, JsonRpcInvalidRequestException,
       JsonRpcInternalException {
     try {
       CreateSmartContract.Builder build = CreateSmartContract.newBuilder();
@@ -986,7 +1006,7 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
 
   // from and to should not be null
   private TransactionJson buildTriggerSmartContractTransaction(byte[] ownerAddress,
-      BuildArguments args) throws JsonRpcInvalidParamsException, JsonRpcInvalidRequestException,
+                                                               BuildArguments args) throws JsonRpcInvalidParamsException, JsonRpcInvalidRequestException,
       JsonRpcInternalException {
     byte[] contractAddress = addressCompatibleToByteArray(args.getTo());
 
@@ -1044,7 +1064,7 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
   }
 
   private TransactionJson createTransactionJson(GeneratedMessageV3.Builder<?> build,
-      ContractType contractTyp, BuildArguments args)
+                                                ContractType contractTyp, BuildArguments args)
       throws JsonRpcInvalidRequestException, JsonRpcInternalException {
     try {
       Transaction tx = wallet
@@ -1066,7 +1086,7 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
   }
 
   private TransactionJson buildTransferContractTransaction(byte[] ownerAddress,
-      BuildArguments args) throws JsonRpcInvalidParamsException, JsonRpcInvalidRequestException,
+                                                           BuildArguments args) throws JsonRpcInvalidParamsException, JsonRpcInvalidRequestException,
       JsonRpcInternalException {
     long amount = args.parseValue();
 
@@ -1080,7 +1100,7 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
 
   // tokenId and tokenValue should not be null
   private TransactionJson buildTransferAssetContractTransaction(byte[] ownerAddress,
-      BuildArguments args) throws JsonRpcInvalidParamsException, JsonRpcInvalidRequestException,
+                                                                BuildArguments args) throws JsonRpcInvalidParamsException, JsonRpcInvalidRequestException,
       JsonRpcInternalException {
     byte[] tokenIdArr = ByteArray.fromString(String.valueOf(args.getTokenId()));
     if (tokenIdArr == null) {
@@ -1357,7 +1377,7 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
   }
 
   private LogFilterElement[] getLogsByLogFilterWrapper(LogFilterWrapper logFilterWrapper,
-      long currentMaxBlockNum) throws JsonRpcTooManyResultException, ExecutionException,
+                                                       long currentMaxBlockNum) throws JsonRpcTooManyResultException, ExecutionException,
       InterruptedException, BadItemException, ItemNotFoundException {
     //query possible block
     LogBlockQuery logBlockQuery = new LogBlockQuery(logFilterWrapper, manager.getChainBaseManager()

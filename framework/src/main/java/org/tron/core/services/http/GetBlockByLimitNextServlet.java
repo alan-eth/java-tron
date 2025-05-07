@@ -19,10 +19,14 @@ public class GetBlockByLimitNextServlet extends RateLimiterServlet {
   @Autowired
   private Wallet wallet;
 
+  @Autowired
+  private WalletOnSpecified walletOnSpecified;
+
   protected void doGet(HttpServletRequest request, HttpServletResponse response) {
     try {
-      fillResponse(Util.getVisible(request), Long.parseLong(request.getParameter("startNum")),
-          Long.parseLong(request.getParameter("endNum")), response);
+      Long specifiedNumber = Util.getSpecifiedNumber(request);
+      walletOnSpecified.futureGet(() -> fillResponse(Util.getVisible(request), Long.parseLong(request.getParameter("startNum")),
+          Long.parseLong(request.getParameter("endNum")), response), specifiedNumber);
     } catch (Exception e) {
       Util.processError(e, response);
     }
@@ -33,7 +37,7 @@ public class GetBlockByLimitNextServlet extends RateLimiterServlet {
       PostParams params = PostParams.getPostParams(request);
       BlockLimit.Builder build = BlockLimit.newBuilder();
       JsonFormat.merge(params.getParams(), build, params.isVisible());
-      fillResponse(params.isVisible(), build.getStartNum(), build.getEndNum(), response);
+      walletOnSpecified.futureGet(() -> fillResponse(params.isVisible(), build.getStartNum(), build.getEndNum(), response), params.getSpecifiedNumber());
     } catch (Exception e) {
       Util.processError(e, response);
     }

@@ -8,6 +8,7 @@ import org.tron.core.ChainBaseManager;
 import org.tron.core.db.Manager;
 import org.tron.core.db.RevokingDatabase;
 import org.tron.core.db2.core.Chainbase;
+import org.tron.core.store.DynamicPropertiesStore;
 
 @Slf4j(topic = "API")
 public abstract class WalletOnCursor {
@@ -48,7 +49,9 @@ public abstract class WalletOnCursor {
     void run() throws Exception;
   }
 
-  public void futureGet(ExceptionalRunnable runnable, Long specifiedNumber) throws Exception {
+  public void futureGet(ExceptionalRunnable runnable, Long specifiedNumber) throws Exception  {
+    DynamicPropertiesStore dynamicPropertiesStore = dbManager.getChainBaseManager().getDynamicPropertiesStore();
+    logger.info("futureGet specifiedNumber = {}, latest header number = {}, latest solidity number = {}", specifiedNumber, dynamicPropertiesStore.getLatestBlockHeaderNumber(), dynamicPropertiesStore.getLatestSolidifiedBlockNum());
     if (specifiedNumber == null) {
       runnable.run();
       return;
@@ -57,6 +60,9 @@ public abstract class WalletOnCursor {
     try {
       ChainBaseManager chainBaseManager = dbManager.getChainBaseManager();
       Long snapshotVersion = chainBaseManager.getDynamicPropertiesStore().getSpecifiedNumberSnapshotVersion(specifiedNumber);
+      if (snapshotVersion == null) {
+        logger.warn("Snapshot version is null for specified number: {}, use head", specifiedNumber);
+      }
       // can be null
       revokingStore.setSpecifiedCursor(snapshotVersion);
       runnable.run();

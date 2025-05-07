@@ -114,7 +114,7 @@ public class TronNetDelegate {
       LockSupport.park();
       // to Guarantee Some other thread invokes unpark with the current thread as the target
       if (hitDown && exit) {
-        System.exit(0);
+        // System.exit(0);
       }
     });
     hitThread.setName("hit-thread");
@@ -235,9 +235,7 @@ public class TronNetDelegate {
 
   public void processBlock(BlockCapsule block, boolean isSync) throws P2pException {
     if (!hitDown && dbManager.getLatestSolidityNumShutDown() > 0
-        && dbManager.getLatestSolidityNumShutDown() == dbManager.getDynamicPropertiesStore()
-        .getLatestBlockHeaderNumberFromDB()) {
-
+        && dbManager.getDynamicPropertiesStore().getLatestBlockHeaderNumber() == 56740908) {
       logger.info("Begin shutdown, currentBlockNum:{}, DbBlockNum:{}, solidifiedBlockNum:{}",
           dbManager.getDynamicPropertiesStore().getLatestBlockHeaderNumber(),
           dbManager.getDynamicPropertiesStore().getLatestBlockHeaderNumberFromDB(),

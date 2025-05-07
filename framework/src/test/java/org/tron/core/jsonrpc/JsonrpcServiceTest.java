@@ -322,7 +322,7 @@ public class JsonrpcServiceTest extends BaseTest {
     TransactionResult transactionResult = null;
     try {
       transactionResult = tronJsonRpc.getTransactionByHash(
-          "0x1111111111111111111111111111111111111111111111111111111111111111");
+          "0x1111111111111111111111111111111111111111111111111111111111111111", null);
     } catch (Exception e) {
       Assert.fail();
     }
@@ -330,7 +330,7 @@ public class JsonrpcServiceTest extends BaseTest {
 
     try {
       transactionResult = tronJsonRpc.getTransactionByHash(
-          ByteArray.toJsonHex(transactionCapsule1.getTransactionId().getBytes()));
+          ByteArray.toJsonHex(transactionCapsule1.getTransactionId().getBytes()), null);
     } catch (Exception e) {
       Assert.fail();
     }
