@@ -1058,6 +1058,14 @@ public class Manager {
       ValidateScheduleException, ReceiptCheckErrException, VMIllegalException,
       TooBigTransactionResultException, ZksnarkException, BadBlockException, EventBloomException {
     processBlock(block, txs);
+    // if (block.getNum() == 56798818) {
+    //   logger.info("Block 56798818 is a special block, sleep 10 minutes.");
+    //   try {
+    //     Thread.sleep(1000 * 60 * 10);
+    //   } catch (InterruptedException e) {
+    //     throw new RuntimeException(e);
+    //   }
+    // }
     chainBaseManager.getBlockStore().put(block.getBlockId().getBytes(), block);
     chainBaseManager.getBlockIndexStore().put(block.getBlockId());
     if (block.getTransactions().size() != 0) {

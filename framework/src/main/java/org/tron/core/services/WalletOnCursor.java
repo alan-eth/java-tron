@@ -46,14 +46,15 @@ public abstract class WalletOnCursor {
 
   @FunctionalInterface
   public interface ExceptionalRunnable {
-    void run() throws Exception;
+    void run(boolean statedMayChanged) throws Exception;
   }
 
   public void futureGet(ExceptionalRunnable runnable, Long specifiedNumber) throws Exception  {
     DynamicPropertiesStore dynamicPropertiesStore = dbManager.getChainBaseManager().getDynamicPropertiesStore();
     logger.info("futureGet specifiedNumber = {}, latest header number = {}, latest solidity number = {}", specifiedNumber, dynamicPropertiesStore.getLatestBlockHeaderNumber(), dynamicPropertiesStore.getLatestSolidifiedBlockNum());
     if (specifiedNumber == null) {
-      runnable.run();
+      // TODO implement me
+      runnable.run(false);
       return;
     }
 
@@ -65,7 +66,8 @@ public abstract class WalletOnCursor {
       }
       // can be null
       revokingStore.setSpecifiedCursor(snapshotVersion);
-      runnable.run();
+
+      runnable.run(!revokingStore.hasCommitted());
     } finally {
       dbManager.resetCursor();
     }

@@ -61,7 +61,7 @@ public class TriggerConstantContractServlet extends RateLimiterServlet {
         build.setData(ByteString.copyFrom(ByteArray.fromHexString(data)));
       }
       Long specifiedNumber = jsonObject.getLong(Util.SPECIFIED_NUMBER);
-      walletOnSpecified.futureGet(() -> {
+      walletOnSpecified.futureGet(statedMayChanged -> {
         TransactionCapsule trxCap = wallet
             .createTransactionCapsule(build.build(), ContractType.TriggerSmartContract);
 

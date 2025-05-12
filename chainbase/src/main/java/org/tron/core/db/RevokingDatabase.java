@@ -25,6 +25,8 @@ public interface RevokingDatabase {
 
   void commit() throws RevokingStoreIllegalStateException;
 
+  boolean hasCommitted();
+
   void pop() throws RevokingStoreIllegalStateException;
 
   void fastPop() throws RevokingStoreIllegalStateException;

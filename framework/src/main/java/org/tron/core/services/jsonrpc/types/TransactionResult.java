@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.google.protobuf.ByteString;
 import java.util.Arrays;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 import org.tron.common.utils.ByteArray;
 import org.tron.core.Wallet;
@@ -54,6 +55,9 @@ public class TransactionResult {
   private String r;
   @Getter
   private String s;
+  @Getter
+  @Setter
+  private boolean statedMayChanged;
 
   private void parseSignature(Transaction tx) {
 

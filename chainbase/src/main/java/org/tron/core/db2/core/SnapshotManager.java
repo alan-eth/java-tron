@@ -223,6 +223,15 @@ public class SnapshotManager implements RevokingDatabase {
         db.getHead().reloadToMem();
       }
     });
+    setHasCommitted();
+  }
+
+  private void setHasCommitted() {
+    dbs.forEach(db -> db.getHead().setCommitted());
+  }
+
+  public boolean hasCommitted() {
+    return dbs.stream().allMatch(db -> db.getHead().isCommitted());
   }
 
   public synchronized void pop() {

@@ -665,8 +665,10 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
   @Override
   public TransactionResult getTransactionByHash(String txId, Long specifiedNumber) throws JsonRpcInvalidParamsException {
     final TransactionResult[] result = {null};
+    final boolean[] statedMayChangedArr = {false};
     try {
-      walletOnSpecified.futureGet(() -> {
+      walletOnSpecified.futureGet(statedMayChanged -> {
+        statedMayChangedArr[0] = statedMayChanged;
         ByteString transactionId = ByteString.copyFrom(hashToByteArray(txId));
 
         TransactionInfo transactionInfo = wallet.getTransactionInfoById(transactionId);
@@ -711,6 +713,7 @@ public class TronJsonRpcImpl implements TronJsonRpc, Closeable {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+    result[0].setStatedMayChanged(statedMayChangedArr[0]);
     return result[0];
   }
 

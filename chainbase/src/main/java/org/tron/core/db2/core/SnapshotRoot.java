@@ -229,4 +229,14 @@ public class SnapshotRoot extends AbstractSnapshot<byte[], byte[]> {
 
   @Override
   public void reloadToMem() { }
+
+  @Override
+  public void setCommitted() {
+
+  }
+
+  @Override
+  public boolean isCommitted() {
+    return true;
+  }
 }

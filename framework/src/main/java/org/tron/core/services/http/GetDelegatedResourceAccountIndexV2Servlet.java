@@ -35,7 +35,7 @@ public class GetDelegatedResourceAccountIndexV2Servlet extends RateLimiterServle
         address = Util.getHexAddress(address);
       }
       String finalAddress = address;
-      walletOnSpecified.futureGet(() -> {
+      walletOnSpecified.futureGet(statedMayChanged -> {
         fillResponse(ByteString.copyFrom(ByteArray.fromHexString(finalAddress)), visible, response);
       }, specifiedNumber);
     } catch (Exception e) {
@@ -57,7 +57,7 @@ public class GetDelegatedResourceAccountIndexV2Servlet extends RateLimiterServle
 
       BytesMessage.Builder build = BytesMessage.newBuilder();
       JsonFormat.merge(input, build, visible);
-      walletOnSpecified.futureGet(() -> fillResponse(build.getValue(), visible, response), params.getSpecifiedNumber());
+      walletOnSpecified.futureGet(statedMayChanged -> fillResponse(build.getValue(), visible, response), params.getSpecifiedNumber());
     } catch (Exception e) {
       Util.processError(e, response);
     }

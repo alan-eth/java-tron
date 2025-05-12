@@ -383,7 +383,7 @@ public class Chainbase implements IRevokingDB {
     Snapshot snapshot = head();
     if (!snapshot.equals(head.getRoot())) {
       Map<WrappedByteArray, WrappedByteArray> all = new HashMap<>();
-      ((SnapshotImpl) snapshot).collect(all, key);
+      ((SnapshotImpl) snapshot).collect(all, key, snapshot);
       all.forEach((k, v) -> result.put(k, v.getBytes()));
     }
     return result;

@@ -235,7 +235,7 @@ public class TronNetDelegate {
 
   public void processBlock(BlockCapsule block, boolean isSync) throws P2pException {
     if (!hitDown && dbManager.getLatestSolidityNumShutDown() > 0
-        && dbManager.getDynamicPropertiesStore().getLatestBlockHeaderNumber() == 56740908) {
+        && dbManager.getDynamicPropertiesStore().getLatestBlockHeaderNumber() == 56798818) {
       logger.info("Begin shutdown, currentBlockNum:{}, DbBlockNum:{}, solidifiedBlockNum:{}",
           dbManager.getDynamicPropertiesStore().getLatestBlockHeaderNumber(),
           dbManager.getDynamicPropertiesStore().getLatestBlockHeaderNumberFromDB(),

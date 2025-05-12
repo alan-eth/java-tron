@@ -20,6 +20,8 @@ public class SnapshotImpl extends AbstractSnapshot<Key, Value> {
   @Getter
   protected Snapshot root;
 
+  private boolean isCommitted;
+
   SnapshotImpl(Snapshot snapshot, long newSnapVersion) {
     root = snapshot.getRoot();
     synchronized (this) {
@@ -134,13 +136,16 @@ public class SnapshotImpl extends AbstractSnapshot<Key, Value> {
     }
   }
 
-  synchronized void collect(Map<WrappedByteArray, WrappedByteArray> all, byte[] prefix) {
+  synchronized void collect(Map<WrappedByteArray, WrappedByteArray> all, byte[] prefix, Snapshot head) {
     Snapshot next = getRoot().getNext();
     while (next != null) {
       Streams.stream(((SnapshotImpl) next).db).filter(e -> Bytes.indexOf(
               Objects.requireNonNull(e.getKey().getBytes()), prefix) == 0)
           .forEach(e -> all.put(WrappedByteArray.of(e.getKey().getBytes()),
               WrappedByteArray.of(e.getValue().getBytes())));
+      if (next == head) {
+        break;
+      }
       next = next.getNext();
     }
   }
@@ -197,5 +202,15 @@ public class SnapshotImpl extends AbstractSnapshot<Key, Value> {
   @Override
   public void reloadToMem() {
     mergeAhead(previous);
+  }
+
+  @Override
+  public void setCommitted() {
+    isCommitted = true;
+  }
+
+  @Override
+  public boolean isCommitted() {
+    return isCommitted;
   }
 }
