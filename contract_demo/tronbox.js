@@ -31,7 +31,7 @@ Then, run the migration with:
       privateKey: process.env.PRIVATE_KEY_NILE,
       userFeePercentage: 100,
       feeLimit: 1000 * 1e6,
-      fullHost: 'https://nile.trongrid.io',
+      fullHost: 'http://127.0.0.1:8099',
       network_id: '3'
     },
     development: {

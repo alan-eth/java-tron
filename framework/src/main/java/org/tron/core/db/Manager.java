@@ -862,12 +862,15 @@ public class Manager {
   /**
    * push transaction into pending.
    */
-  public boolean pushTransaction(final TransactionCapsule trx)
+  public boolean pushTransaction(final TransactionCapsule trx, boolean... isBroadcasts)
       throws ValidateSignatureException, ContractValidateException, ContractExeException,
       AccountResourceInsufficientException, DupTransactionException, TaposException,
       TooBigTransactionException, TransactionExpirationException,
       ReceiptCheckErrException, VMIllegalException, TooBigTransactionResultException {
-
+    boolean isBroadcast = false;
+    if (isBroadcasts.length > 0 && isBroadcasts[0]) {
+      isBroadcast = true;
+    }
     if (isShieldedTransaction(trx.getInstance()) && !Args.getInstance()
         .isFullNodeAllowShieldedTransactionArgs()) {
       return true;
@@ -903,6 +906,10 @@ public class Manager {
           }
           if (!session.valid()) {
             session.setValue(revokingStore.buildSession());
+            if (isBroadcast) {
+              Thread.sleep(1000 * 10);
+              logger.info("[test create pending] Create session for transaction.");
+            }
           }
 
           try (ISession tmpSession = revokingStore.buildSession()) {
@@ -911,13 +918,26 @@ public class Manager {
             pendingTransactions.add(trx);
             Metrics.gaugeInc(MetricKeys.Gauge.MANAGER_QUEUE, 1,
                     MetricLabels.Gauge.QUEUE_PENDING);
+            if (isBroadcast) {
+              logger.info("[test create pending] Push transaction to pending queue: {}",
+                  trx.getTransactionId());
+              Thread.sleep(1000 * 10);
+            }
             tmpSession.merge();
+            if (isBroadcast) {
+              logger.info("[test create pending] Push transaction to pending queue success: {}",
+                  trx.getTransactionId());
+            }
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
           }
           if (isShieldedTransaction(trx.getInstance())) {
             shieldedTransInPendingCounts.incrementAndGet();
           }
         }
       }
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
     } finally {
       if (pushTransactionQueue.remove(trx)) {
         Metrics.gaugeInc(MetricKeys.Gauge.MANAGER_QUEUE, -1,
@@ -1121,6 +1141,8 @@ public class Manager {
       throw e;
     }
 
+    int count = 0;
+    int binaryTreeSize = binaryTree.getValue().size();
     if (CollectionUtils.isNotEmpty(binaryTree.getValue())) {
       while (!getDynamicPropertiesStore()
           .getLatestBlockHeaderHash()
@@ -1130,7 +1152,19 @@ public class Manager {
         }
         reOrgLogsFilter();
         eraseBlock();
+        count += 1;
+        if (count + 1 == binaryTreeSize) {
+          logger.info(
+              "Erase {} blocks, binaryTreeSize = {}, blockId = {}",
+              count + 1,
+              binaryTreeSize,
+              binaryTree.getValue().peekLast().getBlk().getBlockId());
+
+        }
       }
+    }
+    if (count > 0) {
+      logger.info("xxxx Erase {} blocks, binaryTreeSize = {}", count, binaryTreeSize);
     }
 
     if (CollectionUtils.isNotEmpty(binaryTree.getKey())) {

@@ -6,12 +6,15 @@ import com.google.common.collect.Streams;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import lombok.extern.slf4j.Slf4j;
 import org.tron.common.utils.ByteUtil;
 import org.tron.core.capsule.utils.MarketUtils;
 import org.tron.core.db2.common.*;
 import org.tron.core.db2.common.Value.Operator;
 import org.tron.core.exception.ItemNotFoundException;
 
+
+@Slf4j
 public class Chainbase implements IRevokingDB {
 
   // public static Map<String, byte[]> assetsAddress = new HashMap<>(); // key = name , value = address
@@ -27,12 +30,15 @@ public class Chainbase implements IRevokingDB {
   private ThreadLocal<Cursor> cursor = new ThreadLocal<>();
   private ThreadLocal<Long> offset = new ThreadLocal<>();
   private ThreadLocal<Long> specifiedSnapshotVersion = new ThreadLocal<>();
+  private ThreadLocal<Snapshot> specifiedSnapshot = new ThreadLocal<>();
   private Snapshot head;
+  private Map<Long, Snapshot> snapshotSet = new HashMap<>();
 
   public Chainbase(Snapshot head) {
     this.head = head;
     cursor.set(Cursor.HEAD);
     offset.set(0L);
+    onSnapshotAdd(head.getSnapVersion(), head);
   }
 
   public String getDbName() {
@@ -54,6 +60,28 @@ public class Chainbase implements IRevokingDB {
   public void setSpecifiedSnapshotVersion(Long specifiedSnapshotVersion) {
     this.cursor.set(Cursor.SPECIFIED);
     this.specifiedSnapshotVersion.set(specifiedSnapshotVersion);
+    if (specifiedSnapshotVersion == null) {
+      return;
+    }
+    Snapshot tmp = head;
+
+    while (tmp != null && tmp != tmp.getRoot()) {
+      if (tmp.getSnapVersion() == specifiedSnapshotVersion) {
+        this.specifiedSnapshot.set(tmp);
+        return;
+      }
+      tmp = tmp.getPrevious();
+    }
+  }
+
+  @Override
+  public void onSnapshotAdd(long snapshotVersion, Snapshot snapshot) {
+    snapshotSet.put(snapshotVersion, snapshot);
+  }
+
+  @Override
+  public Snapshot onSnapshotRemove(long snapshotVersion) {
+    return snapshotSet.remove(snapshotVersion);
   }
 
   @Override
@@ -90,16 +118,9 @@ public class Chainbase implements IRevokingDB {
           return head.getSolidity();
         }
       case SPECIFIED:
-        Snapshot tmp = head;
-        Long curSnapshotVersion = specifiedSnapshotVersion.get();
-        if (curSnapshotVersion == null) {
-          return head;
-        }
-        while (tmp != null && tmp != tmp.getRoot()) {
-          if (tmp.getSnapVersion() == curSnapshotVersion) {
-            return tmp;
-          }
-          tmp = tmp.getPrevious();
+        Snapshot curSnapshot = specifiedSnapshot.get();
+        if (curSnapshot != null) {
+          return curSnapshot;
         }
         return head;
       default:
@@ -401,6 +422,24 @@ public class Chainbase implements IRevokingDB {
       cur = cur.getPrevious();
     }
     return Snapshot.isImpl(cur) ? cur : null;
+  }
+
+  @Override
+  public void printStats() {
+    logger.info("[chainbase]snapshotSet size: {}", snapshotSet.size());
+    StringBuilder stringBuilder = new StringBuilder();
+    Snapshot tmp = head;
+    stringBuilder.append("[chainbase]version list: [");
+    while (tmp != null && tmp != tmp.getRoot()) {
+      stringBuilder.append(tmp.getSnapVersion()).append(" -> ");
+      tmp = tmp.getPrevious();
+    }
+    if (tmp != null) {
+      stringBuilder.append(tmp.getSnapVersion());
+    }
+    stringBuilder.append("]");
+    logger.info("[chainbase]db name={}, {}", getDbName(), stringBuilder.toString());
+
   }
 
 }

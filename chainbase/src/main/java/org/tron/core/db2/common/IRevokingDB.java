@@ -32,6 +32,10 @@ public interface IRevokingDB extends Iterable<Map.Entry<byte[], byte[]>> {
 
   void setSpecifiedSnapshotVersion(Long specifiedSnapshotVersion);
 
+  void onSnapshotAdd(long snapshotVersion, Snapshot snapshot);
+
+  Snapshot onSnapshotRemove(long snapshotVersion);
+
   Chainbase.Cursor getCursor();
 
   // for blockstore
@@ -49,5 +53,7 @@ public interface IRevokingDB extends Iterable<Map.Entry<byte[], byte[]>> {
   }
 
   Snapshot findSnapshot(byte[] key, byte[] value);
+
+  void printStats();
 
 }
