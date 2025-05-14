@@ -5,12 +5,9 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Streams;
 import com.google.common.primitives.Bytes;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+
+import java.util.*;
+
 import lombok.Getter;
 import org.tron.core.db2.common.HashDB;
 import org.tron.core.db2.common.Key;
@@ -23,7 +20,9 @@ public class SnapshotImpl extends AbstractSnapshot<Key, Value> {
   @Getter
   protected Snapshot root;
 
-  SnapshotImpl(Snapshot snapshot) {
+  private boolean isCommitted;
+
+  SnapshotImpl(Snapshot snapshot, long newSnapVersion) {
     root = snapshot.getRoot();
     synchronized (this) {
       db = new HashDB(SnapshotImpl.class.getSimpleName() + ":" + root.getDbName());
@@ -34,6 +33,7 @@ public class SnapshotImpl extends AbstractSnapshot<Key, Value> {
     if (isOptimized &&  root == previous) {
       Streams.stream(root.iterator()).forEach( e -> put(e.getKey(),e.getValue()));
     }
+    snapVersion = newSnapVersion;
   }
 
   @Override
@@ -86,18 +86,19 @@ public class SnapshotImpl extends AbstractSnapshot<Key, Value> {
   public void merge(Snapshot from) {
     SnapshotImpl fromImpl = (SnapshotImpl) from;
     Streams.stream(fromImpl.db).forEach(e -> db.put(e.getKey(), e.getValue()));
+    snapVersion = from.getSnapVersion();
   }
 
   public void mergeAhead(Snapshot from) {
     if (from instanceof SnapshotRoot) {
-      return ;
+      return;
     }
     SnapshotImpl fromImpl = (SnapshotImpl) from;
     Streams.stream(fromImpl.db).forEach(e -> {
-      if (db.get(e.getKey()) == null) {
-        db.put(e.getKey(), e.getValue());
-      }
-    }
+          if (db.get(e.getKey()) == null) {
+            db.put(e.getKey(), e.getValue());
+          }
+        }
     );
   }
 
@@ -135,13 +136,16 @@ public class SnapshotImpl extends AbstractSnapshot<Key, Value> {
     }
   }
 
-  synchronized void collect(Map<WrappedByteArray, WrappedByteArray> all, byte[] prefix) {
+  synchronized void collect(Map<WrappedByteArray, WrappedByteArray> all, byte[] prefix, Snapshot head) {
     Snapshot next = getRoot().getNext();
     while (next != null) {
       Streams.stream(((SnapshotImpl) next).db).filter(e -> Bytes.indexOf(
               Objects.requireNonNull(e.getKey().getBytes()), prefix) == 0)
           .forEach(e -> all.put(WrappedByteArray.of(e.getKey().getBytes()),
               WrappedByteArray.of(e.getValue().getBytes())));
+      if (next == head) {
+        break;
+      }
       next = next.getNext();
     }
   }
@@ -153,7 +157,7 @@ public class SnapshotImpl extends AbstractSnapshot<Key, Value> {
    * So, if we use list, we need to exclude duplicate keys.
    * More than that, there will be some item which has been deleted, but just assigned in Operator,
    * so we need Operator value to determine next step.
-   * */
+   */
   synchronized void collectUnique(Map<WrappedByteArray, Operator> all) {
     Snapshot next = getRoot().getNext();
     while (next != null) {
@@ -163,7 +167,6 @@ public class SnapshotImpl extends AbstractSnapshot<Key, Value> {
       next = next.getNext();
     }
   }
-
 
 
   @Override
@@ -193,11 +196,21 @@ public class SnapshotImpl extends AbstractSnapshot<Key, Value> {
 
   @Override
   public Snapshot newInstance() {
-    return new SnapshotImpl(this);
+    return new SnapshotImpl(this, this.getSnapVersion());
   }
 
   @Override
   public void reloadToMem() {
-      mergeAhead(previous);
+    mergeAhead(previous);
+  }
+
+  @Override
+  public void setCommitted() {
+    isCommitted = true;
+  }
+
+  @Override
+  public boolean isCommitted() {
+    return isCommitted;
   }
 }

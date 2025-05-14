@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.tron.core.db2.core.Chainbase;
+import org.tron.core.db2.core.Snapshot;
 import org.tron.core.exception.ItemNotFoundException;
 
 public interface IRevokingDB extends Iterable<Map.Entry<byte[], byte[]>> {
@@ -29,6 +30,12 @@ public interface IRevokingDB extends Iterable<Map.Entry<byte[], byte[]>> {
 
   void setCursor(Chainbase.Cursor cursor, long offset);
 
+  void setSpecifiedSnapshotVersion(Long specifiedSnapshotVersion);
+
+  void onSnapshotAdd(long snapshotVersion, Snapshot snapshot);
+
+  Snapshot onSnapshotRemove(long snapshotVersion);
+
   Chainbase.Cursor getCursor();
 
   // for blockstore
@@ -44,5 +51,9 @@ public interface IRevokingDB extends Iterable<Map.Entry<byte[], byte[]>> {
   default Map<byte[], byte[]> getNext(byte[] key, long limit) {
     return Collections.emptyMap();
   }
+
+  Snapshot findSnapshot(byte[] key, byte[] value);
+
+  void printStats();
 
 }

@@ -23,14 +23,21 @@ public class GetDelegatedResourceAccountIndexV2Servlet extends RateLimiterServle
   @Autowired
   private Wallet wallet;
 
+  @Autowired
+  private WalletOnSpecified walletOnSpecified;
+
   protected void doGet(HttpServletRequest request, HttpServletResponse response) {
     try {
       boolean visible = Util.getVisible(request);
       String address = request.getParameter(VALUE_FIELD_NAME);
+      Long specifiedNumber = Util.getSpecifiedNumber(request);
       if (visible) {
         address = Util.getHexAddress(address);
       }
-      fillResponse(ByteString.copyFrom(ByteArray.fromHexString(address)), visible, response);
+      String finalAddress = address;
+      walletOnSpecified.futureGet(statedMayChanged -> {
+        fillResponse(ByteString.copyFrom(ByteArray.fromHexString(finalAddress)), visible, response);
+      }, specifiedNumber);
     } catch (Exception e) {
       Util.processError(e, response);
     }
@@ -50,8 +57,7 @@ public class GetDelegatedResourceAccountIndexV2Servlet extends RateLimiterServle
 
       BytesMessage.Builder build = BytesMessage.newBuilder();
       JsonFormat.merge(input, build, visible);
-
-      fillResponse(build.getValue(), visible, response);
+      walletOnSpecified.futureGet(statedMayChanged -> fillResponse(build.getValue(), visible, response), params.getSpecifiedNumber());
     } catch (Exception e) {
       Util.processError(e, response);
     }

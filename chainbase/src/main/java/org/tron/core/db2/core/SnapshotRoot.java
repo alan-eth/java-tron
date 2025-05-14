@@ -39,9 +39,12 @@ public class SnapshotRoot extends AbstractSnapshot<byte[], byte[]> {
       this.cache = CacheManager.allocate(CacheType.findByType(this.db.getDbName()));
     }
     isOptimized = "properties".equalsIgnoreCase(db.getDbName());
+
+    // Set the snapshot version
+    snapVersion = SnapshotVersion.getInstance().getCurrentVersion();
   }
 
-  private boolean needOptAsset() {
+  protected boolean needOptAsset() {
     return isAccountDB && ChainBaseManager.getInstance().getDynamicPropertiesStore()
             .getAllowAccountAssetOptimizationFromRoot() == 1;
   }
@@ -102,6 +105,7 @@ public class SnapshotRoot extends AbstractSnapshot<byte[], byte[]> {
       ((Flusher) db).flush(batch);
       putCache(batch);
     }
+    snapVersion = from.getSnapVersion();
   }
 
   public void merge(List<Snapshot> snapshots) {
@@ -121,7 +125,7 @@ public class SnapshotRoot extends AbstractSnapshot<byte[], byte[]> {
     }
   }
 
-  private void processAccount(Map<WrappedByteArray, WrappedByteArray> batch) {
+  protected void processAccount(Map<WrappedByteArray, WrappedByteArray> batch) {
     AccountAssetStore assetStore = ChainBaseManager.getInstance().getAccountAssetStore();
     Map<WrappedByteArray, WrappedByteArray> accounts = new HashMap<>();
     Map<WrappedByteArray, WrappedByteArray> assets = new HashMap<>();
@@ -157,7 +161,7 @@ public class SnapshotRoot extends AbstractSnapshot<byte[], byte[]> {
     }
   }
 
-  private void putCache(Map<WrappedByteArray, WrappedByteArray> values) {
+  protected void putCache(Map<WrappedByteArray, WrappedByteArray> values) {
     if (cached()) {
       values.forEach(cache::put);
     }
@@ -225,4 +229,14 @@ public class SnapshotRoot extends AbstractSnapshot<byte[], byte[]> {
 
   @Override
   public void reloadToMem() { }
+
+  @Override
+  public void setCommitted() {
+
+  }
+
+  @Override
+  public boolean isCommitted() {
+    return true;
+  }
 }

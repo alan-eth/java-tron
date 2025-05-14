@@ -21,11 +21,15 @@ public class GetTransactionByIdServlet extends RateLimiterServlet {
   @Autowired
   private Wallet wallet;
 
+  @Autowired
+  private WalletOnSpecified walletOnSpecified;
+
   protected void doGet(HttpServletRequest request, HttpServletResponse response) {
     try {
+      Long specifiedNumber = Util.getSpecifiedNumber(request);
       boolean visible = Util.getVisible(request);
       String input = request.getParameter("value");
-      fillResponse(ByteString.copyFrom(ByteArray.fromHexString(input)), visible, response);
+      walletOnSpecified.futureGet(statedMayChanged -> fillResponse(ByteString.copyFrom(ByteArray.fromHexString(input)), visible, response), specifiedNumber);
     } catch (Exception e) {
       Util.processError(e, response);
     }
@@ -36,7 +40,7 @@ public class GetTransactionByIdServlet extends RateLimiterServlet {
       PostParams params = PostParams.getPostParams(request);
       BytesMessage.Builder build = BytesMessage.newBuilder();
       JsonFormat.merge(params.getParams(), build, params.isVisible());
-      fillResponse(build.getValue(), params.isVisible(), response);
+      walletOnSpecified.futureGet(statedMayChanged -> fillResponse(build.getValue(), params.isVisible(), response), params.getSpecifiedNumber());
     } catch (Exception e) {
       Util.processError(e, response);
     }

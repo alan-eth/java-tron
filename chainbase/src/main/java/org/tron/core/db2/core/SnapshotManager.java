@@ -1,6 +1,7 @@
 package org.tron.core.db2.core;
 
 import com.google.common.collect.Maps;
+import com.google.common.collect.Streams;
 import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Futures;
@@ -35,11 +36,7 @@ import org.tron.common.utils.StorageUtils;
 import org.tron.core.db.RevokingDatabase;
 import org.tron.core.db.TronDatabase;
 import org.tron.core.db2.ISession;
-import org.tron.core.db2.common.DB;
-import org.tron.core.db2.common.IRevokingDB;
-import org.tron.core.db2.common.Key;
-import org.tron.core.db2.common.Value;
-import org.tron.core.db2.common.WrappedByteArray;
+import org.tron.core.db2.common.*;
 import org.tron.core.exception.RevokingStoreIllegalStateException;
 import org.tron.core.exception.TronError;
 import org.tron.core.store.CheckPointV2Store;
@@ -73,6 +70,8 @@ public class SnapshotManager implements RevokingDatabase {
   private Map<String, ListeningExecutorService> flushServices = new HashMap<>();
 
   private ScheduledExecutorService pruneCheckpointThread = null;
+
+  private ScheduledExecutorService monitorSnapshotThread = null;
   private final String pruneName = "checkpoint-prune";
 
   @Autowired
@@ -104,6 +103,11 @@ public class SnapshotManager implements RevokingDatabase {
         }
       }, 10000, 3600, TimeUnit.MILLISECONDS);
     }
+
+    monitorSnapshotThread = ExecutorServiceManager.newSingleThreadScheduledExecutor("monitor-snapshot");
+    monitorSnapshotThread.scheduleWithFixedDelay(() -> {
+      dbs.forEach(Chainbase::printStats);
+    }, 1000, 3000, TimeUnit.MILLISECONDS);
   }
 
   public static String simpleDecode(byte[] bytes) {
@@ -150,6 +154,11 @@ public class SnapshotManager implements RevokingDatabase {
   }
 
   @Override
+  public void setSpecifiedCursor(Long specifiedSnapshotVersion) {
+    dbs.forEach(db -> db.setSpecifiedSnapshotVersion(specifiedSnapshotVersion));
+  }
+
+  @Override
   public void add(IRevokingDB db) {
     Chainbase revokingDB = (Chainbase) db;
     dbs.add(revokingDB);
@@ -159,12 +168,21 @@ public class SnapshotManager implements RevokingDatabase {
   }
 
   private void advance() {
-    dbs.forEach(db -> db.setHead(db.getHead().advance()));
+    final long newVersion = SnapshotVersion.getInstance().addOne();
+    dbs.forEach(db -> {
+      Snapshot advanced = db.getHead().advance(newVersion);
+      db.setHead(advanced);
+      db.onSnapshotAdd(newVersion, advanced);
+    });
     ++size;
   }
 
   private void retreat() {
-    dbs.forEach(db -> db.setHead(db.getHead().retreat()));
+    dbs.forEach(db -> {
+      Snapshot oldHead = db.getHead();
+      db.setHead(oldHead.retreat());
+      db.onSnapshotRemove(oldHead.getSnapVersion());
+    });
     --size;
   }
 
@@ -217,6 +235,15 @@ public class SnapshotManager implements RevokingDatabase {
         db.getHead().reloadToMem();
       }
     });
+    setHasCommitted();
+  }
+
+  private void setHasCommitted() {
+    dbs.forEach(db -> db.getHead().setCommitted());
+  }
+
+  public boolean hasCommitted() {
+    return dbs.stream().allMatch(db -> db.getHead().isCommitted());
   }
 
   public synchronized void pop() {
@@ -315,7 +342,7 @@ public class SnapshotManager implements RevokingDatabase {
       snapshots.add(next);
     }
 
-    root.merge(snapshots);
+    merge(db, root, snapshots);
 
     root.resetSolidity();
     if (db.getHead() == next) {
@@ -323,6 +350,26 @@ public class SnapshotManager implements RevokingDatabase {
     } else {
       next.getNext().setPrevious(root);
       root.setNext(next.getNext());
+    }
+  }
+
+  private void merge(Chainbase chainbase, SnapshotRoot root, List<Snapshot> snapshots) {
+    Map<WrappedByteArray, WrappedByteArray> batch = new HashMap<>();
+    for (Snapshot snapshot : snapshots) {
+      SnapshotImpl from = (SnapshotImpl) snapshot;
+      Streams.stream(from.db)
+          .map(e -> Maps.immutableEntry(WrappedByteArray.of(e.getKey().getBytes()),
+              WrappedByteArray.of(e.getValue().getBytes())))
+          .forEach(e -> batch.put(e.getKey(), e.getValue()));
+      chainbase.onSnapshotRemove(root.getSnapVersion());
+      root.setSnapVersion(from.getSnapVersion());
+      chainbase.onSnapshotAdd(root.getSnapVersion(), root);
+    }
+    if (root.needOptAsset()) {
+      root.processAccount(batch);
+    } else {
+      ((Flusher) root.db).flush(batch);
+      root.putCache(batch);
     }
   }
 

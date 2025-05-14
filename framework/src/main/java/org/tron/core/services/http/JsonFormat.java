@@ -46,12 +46,7 @@ import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.text.CharacterIterator;
 import java.text.StringCharacterIterator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
@@ -95,11 +90,11 @@ public class JsonFormat {
    * (This representation is the new version of the classic "ProtocolPrinter" output from the
    * original Protocol Buffer system)
    */
-  public static void print(Message message, Appendable output, boolean selfType)
+  public static void print(Message message, Appendable output, boolean selfType, boolean... statedMayChanged)
       throws IOException {
     JsonGenerator generator = new JsonGenerator(output);
     generator.print("{");
-    print(message, generator, selfType);
+    print(message, generator, selfType, statedMayChanged);
     generator.print("}");
   }
 
@@ -114,7 +109,7 @@ public class JsonFormat {
     generator.print("}");
   }
 
-  protected static void print(Message message, JsonGenerator generator, boolean selfType)
+  protected static void print(Message message, JsonGenerator generator, boolean selfType, boolean... statedMayChanged)
       throws IOException {
     Map<FieldDescriptor, Object> fieldsToPrint = new TreeMap<>(message.getAllFields());
     if (ALWAYS_OUTPUT_DEFAULT_VALUE_FIELDS && MESSAGES.contains(message.getClass())) {
@@ -147,6 +142,10 @@ public class JsonFormat {
         generator.print(",");
       }
     }
+    if (!fieldsToPrint.entrySet().isEmpty() && Objects.nonNull(statedMayChanged) && statedMayChanged.length > 0 && statedMayChanged[0]) {
+      generator.print(",");
+      generator.print("\"statedMayChanged\": true");
+    }
 
     // do not print unknown fields
     // if (message.getUnknownFields().asMap().size() > 0) {
@@ -158,10 +157,10 @@ public class JsonFormat {
   /**
    * Like {@code print()}, but writes directly to a {@code String} and returns it.
    */
-  public static String printToString(Message message, boolean selfType) {
+  public static String printToString(Message message, boolean selfType, boolean... statedMayChanged) {
     try {
       StringBuilder text = new StringBuilder();
-      print(message, text, selfType);
+      print(message, text, selfType, statedMayChanged);
       return text.toString();
     } catch (IOException e) {
       throw new RuntimeException(WRITING_STRING_BUILDER_EXCEPTION, e);
@@ -385,7 +384,7 @@ public class JsonFormat {
       case MESSAGE:
       case GROUP:
         generator.print("{");
-        print((Message) value, generator, selfType);
+        print((Message) value, generator, selfType, false);
         generator.print("}");
         break;
       default:

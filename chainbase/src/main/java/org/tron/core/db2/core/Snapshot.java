@@ -12,6 +12,7 @@ public interface Snapshot extends Iterable<Map.Entry<byte[], byte[]>>, Instance<
   static boolean isImpl(Snapshot snapshot) {
     return snapshot != null && snapshot.getClass() == SnapshotImpl.class;
   }
+  long getSnapVersion();
 
   byte[] get(byte[] key);
 
@@ -21,7 +22,7 @@ public interface Snapshot extends Iterable<Map.Entry<byte[], byte[]>>, Instance<
 
   void merge(Snapshot from);
 
-  Snapshot advance();
+  Snapshot advance(long newSnapVersion);
 
   Snapshot retreat();
 
@@ -50,4 +51,8 @@ public interface Snapshot extends Iterable<Map.Entry<byte[], byte[]>>, Instance<
   boolean isOptimized();
 
   void reloadToMem();
+
+  void setCommitted();
+
+  boolean isCommitted();
 }

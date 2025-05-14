@@ -2,45 +2,43 @@ package org.tron.core.db2.core;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Streams;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+
+import java.util.*;
 import java.util.stream.Collectors;
 
+import lombok.extern.slf4j.Slf4j;
 import org.tron.common.utils.ByteUtil;
-import org.tron.common.utils.Pair;
 import org.tron.core.capsule.utils.MarketUtils;
-import org.tron.core.db2.common.IRevokingDB;
-import org.tron.core.db2.common.LevelDB;
-import org.tron.core.db2.common.RocksDB;
-import org.tron.core.db2.common.Value;
+import org.tron.core.db2.common.*;
 import org.tron.core.db2.common.Value.Operator;
-import org.tron.core.db2.common.WrappedByteArray;
 import org.tron.core.exception.ItemNotFoundException;
 
+
+@Slf4j
 public class Chainbase implements IRevokingDB {
 
   // public static Map<String, byte[]> assetsAddress = new HashMap<>(); // key = name , value = address
   public enum Cursor {
     HEAD,
     SOLIDITY,
-    PBFT
+    PBFT,
+    // add a specified block number cursor
+    SPECIFIED,
   }
 
   //true:fullnode, false:soliditynode
   private ThreadLocal<Cursor> cursor = new ThreadLocal<>();
   private ThreadLocal<Long> offset = new ThreadLocal<>();
+  private ThreadLocal<Long> specifiedSnapshotVersion = new ThreadLocal<>();
+  private ThreadLocal<Snapshot> specifiedSnapshot = new ThreadLocal<>();
   private Snapshot head;
+  private Map<Long, Snapshot> snapshotSet = new HashMap<>();
 
   public Chainbase(Snapshot head) {
     this.head = head;
     cursor.set(Cursor.HEAD);
     offset.set(0L);
+    onSnapshotAdd(head.getSnapVersion(), head);
   }
 
   public String getDbName() {
@@ -56,6 +54,34 @@ public class Chainbase implements IRevokingDB {
   public void setCursor(Cursor cursor, long offset) {
     this.cursor.set(cursor);
     this.offset.set(offset);
+  }
+
+  @Override
+  public void setSpecifiedSnapshotVersion(Long specifiedSnapshotVersion) {
+    this.cursor.set(Cursor.SPECIFIED);
+    this.specifiedSnapshotVersion.set(specifiedSnapshotVersion);
+    if (specifiedSnapshotVersion == null) {
+      return;
+    }
+    Snapshot tmp = head;
+
+    while (tmp != null && tmp != tmp.getRoot()) {
+      if (tmp.getSnapVersion() == specifiedSnapshotVersion) {
+        this.specifiedSnapshot.set(tmp);
+        return;
+      }
+      tmp = tmp.getPrevious();
+    }
+  }
+
+  @Override
+  public void onSnapshotAdd(long snapshotVersion, Snapshot snapshot) {
+    snapshotSet.put(snapshotVersion, snapshot);
+  }
+
+  @Override
+  public Snapshot onSnapshotRemove(long snapshotVersion) {
+    return snapshotSet.remove(snapshotVersion);
   }
 
   @Override
@@ -91,6 +117,12 @@ public class Chainbase implements IRevokingDB {
         } else {
           return head.getSolidity();
         }
+      case SPECIFIED:
+        Snapshot curSnapshot = specifiedSnapshot.get();
+        if (curSnapshot != null) {
+          return curSnapshot;
+        }
+        return head;
       default:
         return head;
     }
@@ -351,7 +383,7 @@ public class Chainbase implements IRevokingDB {
 
   public Map<WrappedByteArray, byte[]> prefixQuery(byte[] key) {
     Map<WrappedByteArray, byte[]> result = prefixQueryRoot(key);
-    Map<WrappedByteArray, byte[]>  snapshot = prefixQuerySnapshot(key);
+    Map<WrappedByteArray, byte[]> snapshot = prefixQuerySnapshot(key);
     result.putAll(snapshot);
     result.entrySet().removeIf(e -> e.getValue() == null);
     return result;
@@ -372,10 +404,42 @@ public class Chainbase implements IRevokingDB {
     Snapshot snapshot = head();
     if (!snapshot.equals(head.getRoot())) {
       Map<WrappedByteArray, WrappedByteArray> all = new HashMap<>();
-      ((SnapshotImpl) snapshot).collect(all, key);
+      ((SnapshotImpl) snapshot).collect(all, key, snapshot);
       all.forEach((k, v) -> result.put(k, v.getBytes()));
     }
     return result;
+  }
+
+
+  public Snapshot findSnapshot(byte[] key, byte[] value) {
+    Snapshot cur = head;
+    Value tmpValue;
+    while (Snapshot.isImpl(cur)) {
+      if ((tmpValue = ((SnapshotImpl) cur).db.get(Key.of(key))) != null
+          && Arrays.equals(tmpValue.getBytes(), value)) {
+        return cur;
+      }
+      cur = cur.getPrevious();
+    }
+    return Snapshot.isImpl(cur) ? cur : null;
+  }
+
+  @Override
+  public void printStats() {
+    logger.info("[chainbase]snapshotSet size: {}", snapshotSet.size());
+    StringBuilder stringBuilder = new StringBuilder();
+    Snapshot tmp = head;
+    stringBuilder.append("[chainbase]version list: [");
+    while (tmp != null && tmp != tmp.getRoot()) {
+      stringBuilder.append(tmp.getSnapVersion()).append(" -> ");
+      tmp = tmp.getPrevious();
+    }
+    if (tmp != null) {
+      stringBuilder.append(tmp.getSnapVersion());
+    }
+    stringBuilder.append("]");
+    logger.info("[chainbase]db name={}, {}", getDbName(), stringBuilder.toString());
+
   }
 
 }

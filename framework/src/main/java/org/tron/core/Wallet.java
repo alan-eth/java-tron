@@ -557,7 +557,7 @@ public class Wallet {
       }
       TransactionMessage message = new TransactionMessage(trx.getInstance().toByteArray());
       trx.checkExpiration(chainBaseManager.getNextBlockSlotTime());
-      dbManager.pushTransaction(trx);
+      dbManager.pushTransaction(trx, false);
       int num = tronNetService.fastBroadcastTransaction(message);
       if (num == 0 && minEffectiveConnection != 0) {
         return builder.setResult(false).setCode(response_code.NOT_ENOUGH_EFFECTIVE_CONNECTION)

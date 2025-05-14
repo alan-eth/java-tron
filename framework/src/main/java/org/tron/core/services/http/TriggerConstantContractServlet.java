@@ -3,10 +3,12 @@ package org.tron.core.services.http;
 import com.alibaba.fastjson.JSONObject;
 import com.google.protobuf.ByteString;
 import io.netty.util.internal.StringUtil;
+
 import java.io.IOException;
 import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -29,6 +31,9 @@ public class TriggerConstantContractServlet extends RateLimiterServlet {
   @Autowired
   private Wallet wallet;
 
+  @Autowired
+  private WalletOnSpecified walletOnSpecified;
+
   protected void doGet(HttpServletRequest request, HttpServletResponse response) {
   }
 
@@ -37,14 +42,14 @@ public class TriggerConstantContractServlet extends RateLimiterServlet {
     TriggerSmartContract.Builder build = TriggerSmartContract.newBuilder();
     TransactionExtention.Builder trxExtBuilder = TransactionExtention.newBuilder();
     Return.Builder retBuilder = Return.newBuilder();
-    boolean visible = false;
+    final boolean[] visible = new boolean[1];
     try {
       String contract = request.getReader().lines()
           .collect(Collectors.joining(System.lineSeparator()));
       Util.checkBodySize(contract);
-      visible = Util.getVisiblePost(contract);
+      visible[0] = Util.getVisiblePost(contract);
       Util.validateParameter(contract);
-      JsonFormat.merge(contract, build, visible);
+      JsonFormat.merge(contract, build, visible[0]);
       JSONObject jsonObject = JSONObject.parseObject(contract);
 
       boolean isFunctionSelectorSet =
@@ -55,18 +60,20 @@ public class TriggerConstantContractServlet extends RateLimiterServlet {
         String data = Util.parseMethod(selector, parameter);
         build.setData(ByteString.copyFrom(ByteArray.fromHexString(data)));
       }
+      Long specifiedNumber = jsonObject.getLong(Util.SPECIFIED_NUMBER);
+      walletOnSpecified.futureGet(statedMayChanged -> {
+        TransactionCapsule trxCap = wallet
+            .createTransactionCapsule(build.build(), ContractType.TriggerSmartContract);
 
-      TransactionCapsule trxCap = wallet
-          .createTransactionCapsule(build.build(), ContractType.TriggerSmartContract);
-
-      Transaction trx = wallet
-          .triggerConstantContract(build.build(),trxCap,
-              trxExtBuilder,
-              retBuilder);
-      trx = Util.setTransactionPermissionId(jsonObject, trx);
-      trx = Util.setTransactionExtraData(jsonObject, trx, visible);
-      trxExtBuilder.setTransaction(trx);
-      retBuilder.setResult(true).setCode(response_code.SUCCESS);
+        Transaction trx = wallet
+            .triggerConstantContract(build.build(), trxCap,
+                trxExtBuilder,
+                retBuilder);
+        trx = Util.setTransactionPermissionId(jsonObject, trx);
+        trx = Util.setTransactionExtraData(jsonObject, trx, visible[0]);
+        trxExtBuilder.setTransaction(trx);
+        retBuilder.setResult(true).setCode(response_code.SUCCESS);
+      }, specifiedNumber);
     } catch (ContractValidateException e) {
       retBuilder.setResult(false).setCode(response_code.CONTRACT_VALIDATE_ERROR)
           .setMessage(ByteString.copyFromUtf8(e.getMessage()));
@@ -79,6 +86,6 @@ public class TriggerConstantContractServlet extends RateLimiterServlet {
           .setMessage(ByteString.copyFromUtf8(e.getClass() + " : " + errString));
     }
     trxExtBuilder.setResult(retBuilder);
-    response.getWriter().println(Util.printTransactionExtention(trxExtBuilder.build(), visible));
+    response.getWriter().println(Util.printTransactionExtention(trxExtBuilder.build(), visible[0]));
   }
 }
